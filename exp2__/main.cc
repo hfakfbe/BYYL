@@ -24,12 +24,12 @@ int main() {
 
     // 创建文法
     auto grammar = std::make_unique<Grammar>(e);
-    grammar->AddProduction(std::make_shared<Production>(e, {e, plus, t}));
-    grammar->AddProduction(std::make_shared<Production>(e, {t}));
-    grammar->AddProduction(std::make_shared<Production>(t, {t, star, f}));
-    grammar->AddProduction(std::make_shared<Production>(t, {f}));
-    grammar->AddProduction(std::make_shared<Production>(f, {lparen, e, rparen}));
-    grammar->AddProduction(std::make_shared<Production>(f, {id}));
+    grammar->AddProduction(std::make_shared<Production>(e, std::vector<std::shared_ptr<Symbol>> {e, plus, t}));
+    grammar->AddProduction(std::make_shared<Production>(e, std::vector<std::shared_ptr<Symbol>> {t}));
+    grammar->AddProduction(std::make_shared<Production>(t, std::vector<std::shared_ptr<Symbol>> {t, star, f}));
+    grammar->AddProduction(std::make_shared<Production>(t, std::vector<std::shared_ptr<Symbol>> {f}));
+    grammar->AddProduction(std::make_shared<Production>(f, std::vector<std::shared_ptr<Symbol>> {lparen, e, rparen}));
+    grammar->AddProduction(std::make_shared<Production>(f, std::vector<std::shared_ptr<Symbol>> {id}));
 
     // 构建项目集和分析表（省略具体实现）
     // ...

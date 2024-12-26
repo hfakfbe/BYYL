@@ -5,23 +5,70 @@
 #include <memory>
 #include <vector>
 #include <set>
+#include <stdexcept>
 #include "production.h"
 #include "symbol.h"
 
+// 以下类是一个比较完整的上下文无关文法类，实现了基本功能。更进一步的功能可以从该类继承
 class Grammar {
 private:
+    std::set<std::shared_ptr<Symbol>> terminals_;
+    std::set<std::shared_ptr<Symbol>> non_terminals_;
     std::vector<std::shared_ptr<Production>> productions_;
     std::shared_ptr<Symbol> start_symbol_;
 
 public:
-    Grammar(std::shared_ptr<Symbol> start_symbol) : start_symbol_(start_symbol) {}
+    std::shared_ptr<Symbol> GetStartSymbol() const { 
+        return start_symbol_; 
+    }
+    const std::vector<std::shared_ptr<Production>>& GetProductions() const { 
+        return productions_; 
+    }
+    std::set<std::shared_ptr<Symbol>> GetNonTerminals() const {
+        return non_terminals_;
+    }
+    std::set<std::shared_ptr<Symbol>> GetTerminals() const {
+        return terminals_;
+    }
 
-    void AddProduction(std::shared_ptr<Production> production) { productions_.push_back(production); }
-    std::shared_ptr<Symbol> GetStartSymbol() const { return start_symbol_; }
-    const std::vector<std::shared_ptr<Production>>& GetProductions() const { return productions_; }
-    std::set<std::shared_ptr<Symbol>> GetNonTerminals() const;
-    std::set<std::shared_ptr<Symbol>> GetTerminals() const;
-    void ComputeFollowSets();
+    Grammar(std::shared_ptr<Symbol> start_symbol,
+            std::set<std::shared_ptr<Symbol>> terminals,
+            std::set<std::shared_ptr<Symbol>> non_terminals,
+            std::vector<std::shared_ptr<Production>> productions)
+        : start_symbol_(std::move(start_symbol)),
+          terminals_(std::move(terminals)),
+          non_terminals_(std::move(non_terminals)),
+          productions_(std::move(productions)) {
+
+        // Check if the start symbol is a non-terminal and is in the set of non-terminals
+        if (start_symbol_->type != Symbol::Type::NONTERMINAL ||
+            non_terminals_.find(start_symbol_) == non_terminals_.end()) {
+            throw std::invalid_argument("Start symbol must be a non-terminal and defined in the set of non-terminals.");
+        }
+
+        // Validate each production
+        for (const auto& production : productions_) {
+            // Check if the left-hand side is a non-terminal and is in the set of non-terminals
+            if (production->left->type != Symbol::Type::NONTERMINAL ||
+                non_terminals_.find(production->left) == non_terminals_.end()) {
+                throw std::invalid_argument("Production left-hand side must be a non-terminal and defined in the set of non-terminals.");
+            }
+
+            // Check all right-hand side symbols
+            for (const auto& symbol : production->right) {
+                bool isValid = false;
+                if (symbol->type == Symbol::Type::TERMINAL && terminals_.find(symbol) != terminals_.end()) {
+                    isValid = true;
+                } else if (symbol->type == Symbol::Type::NONTERMINAL && non_terminals_.find(symbol) != non_terminals_.end()) {
+                    isValid = true;
+                }
+
+                if (!isValid) {
+                    throw std::invalid_argument("All production right-hand side symbols must be defined in the respective sets of terminals or non-terminals.");
+                }
+            }
+        }
+    }
 };
 
 #endif  // GRAMMAR_H_

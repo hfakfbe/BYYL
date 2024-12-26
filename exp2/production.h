@@ -8,19 +8,12 @@
 #include "symbol.h"
 
 class Production {
-private:
-    std::shared_ptr<Symbol> head_;
-    std::vector<std::shared_ptr<Symbol>> body_;
-    std::set<std::shared_ptr<Symbol>> follow_positions_;
-
 public:
-    Production(std::shared_ptr<Symbol> head, const std::vector<std::shared_ptr<Symbol>>& body)
-        : head_(head), body_(body) {}
+    std::shared_ptr<Symbol> left;
+    std::vector<std::shared_ptr<Symbol>> right;
 
-    void AddFollowPosition(const std::shared_ptr<Symbol>& symbol) { follow_positions_.insert(symbol); }
-    std::shared_ptr<Symbol> GetHead() const { return head_; }
-    const std::vector<std::shared_ptr<Symbol>>& GetBody() const { return body_; }
-    const std::set<std::shared_ptr<Symbol>>& GetFollowPositions() const { return follow_positions_; }
+    Production(std::shared_ptr<Symbol> left, const std::vector<std::shared_ptr<Symbol>>& right)
+        : left(left), right(right) {}
 };
 
 #endif  // PRODUCTION_H_
