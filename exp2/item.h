@@ -7,11 +7,11 @@
 
 class Item {
 public:
-    std::shared_ptr<Production> production;
+    Production production;
     size_t dot_position;
-    std::shared_ptr<Symbol> lookahead;
+    Symbol lookahead; // search symbol
 
-    Item(std::shared_ptr<Production> production, size_t dot_position, std::shared_ptr<Symbol> lookahead)
+    Item(Production production, size_t dot_position, Symbol lookahead)
         : production(production), dot_position(dot_position), lookahead(lookahead) {}
 };
 

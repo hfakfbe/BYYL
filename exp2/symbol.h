@@ -11,6 +11,9 @@ public:
 
     Symbol(const std::string& name, Type type)
         : name(name), type(type) {}
+    bool operator==(const Symbol& other) const {
+        return name == other.name && type == other.type;
+    }
 };
 
 #endif  // SYMBOL_H_

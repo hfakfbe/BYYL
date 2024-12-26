@@ -9,10 +9,10 @@
 
 class Production {
 public:
-    std::shared_ptr<Symbol> left;
-    std::vector<std::shared_ptr<Symbol>> right;
+    Symbol left;
+    std::vector<Symbol> right;
 
-    Production(std::shared_ptr<Symbol> left, const std::vector<std::shared_ptr<Symbol>>& right)
+    Production(const Symbol &left, const std::vector<Symbol> &right)
         : left(left), right(right) {}
 };
 

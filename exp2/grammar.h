@@ -12,36 +12,36 @@
 // 以下类是一个比较完整的上下文无关文法类，实现了基本功能。更进一步的功能可以从该类继承
 class Grammar {
 private:
-    std::set<std::shared_ptr<Symbol>> terminals_;
-    std::set<std::shared_ptr<Symbol>> non_terminals_;
-    std::vector<std::shared_ptr<Production>> productions_;
-    std::shared_ptr<Symbol> start_symbol_;
+    std::set<Symbol> terminals_;
+    std::set<Symbol> non_terminals_;
+    std::vector<Production> productions_;
+    Symbol start_symbol_;
 
 public:
-    std::shared_ptr<Symbol> GetStartSymbol() const { 
+    Symbol GetStartSymbol() const { 
         return start_symbol_; 
     }
-    const std::vector<std::shared_ptr<Production>>& GetProductions() const { 
+    const std::vector<Production>& GetProductions() const { 
         return productions_; 
     }
-    std::set<std::shared_ptr<Symbol>> GetNonTerminals() const {
+    std::set<Symbol> GetNonTerminals() const {
         return non_terminals_;
     }
-    std::set<std::shared_ptr<Symbol>> GetTerminals() const {
+    std::set<Symbol> GetTerminals() const {
         return terminals_;
     }
 
-    Grammar(std::shared_ptr<Symbol> start_symbol,
-            std::set<std::shared_ptr<Symbol>> terminals,
-            std::set<std::shared_ptr<Symbol>> non_terminals,
-            std::vector<std::shared_ptr<Production>> productions)
+    Grammar(Symbol start_symbol,
+            std::set<Symbol> terminals,
+            std::set<Symbol> non_terminals,
+            std::vector<Production> productions)
         : start_symbol_(std::move(start_symbol)),
           terminals_(std::move(terminals)),
           non_terminals_(std::move(non_terminals)),
           productions_(std::move(productions)) {
 
         // Check if the start symbol is a non-terminal and is in the set of non-terminals
-        if (start_symbol_->type != Symbol::Type::NONTERMINAL ||
+        if (start_symbol_.type != Symbol::Type::NONTERMINAL ||
             non_terminals_.find(start_symbol_) == non_terminals_.end()) {
             throw std::invalid_argument("Start symbol must be a non-terminal and defined in the set of non-terminals.");
         }
@@ -49,17 +49,17 @@ public:
         // Validate each production
         for (const auto& production : productions_) {
             // Check if the left-hand side is a non-terminal and is in the set of non-terminals
-            if (production->left->type != Symbol::Type::NONTERMINAL ||
-                non_terminals_.find(production->left) == non_terminals_.end()) {
+            if (production.left.type != Symbol::Type::NONTERMINAL ||
+                non_terminals_.find(production.left) == non_terminals_.end()) {
                 throw std::invalid_argument("Production left-hand side must be a non-terminal and defined in the set of non-terminals.");
             }
 
             // Check all right-hand side symbols
-            for (const auto& symbol : production->right) {
+            for (const auto& symbol : production.right) {
                 bool isValid = false;
-                if (symbol->type == Symbol::Type::TERMINAL && terminals_.find(symbol) != terminals_.end()) {
+                if (symbol.type == Symbol::Type::TERMINAL && terminals_.find(symbol) != terminals_.end()) {
                     isValid = true;
-                } else if (symbol->type == Symbol::Type::NONTERMINAL && non_terminals_.find(symbol) != non_terminals_.end()) {
+                } else if (symbol.type == Symbol::Type::NONTERMINAL && non_terminals_.find(symbol) != non_terminals_.end()) {
                     isValid = true;
                 }
 
