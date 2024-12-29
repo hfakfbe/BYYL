@@ -35,10 +35,10 @@ public:
             std::set<Symbol> terminals,
             std::set<Symbol> non_terminals,
             std::vector<Production> productions)
-        : start_symbol_(std::move(start_symbol)),
-          terminals_(std::move(terminals)),
-          non_terminals_(std::move(non_terminals)),
-          productions_(std::move(productions)) {
+        : start_symbol_(start_symbol),
+          terminals_(terminals),
+          non_terminals_(non_terminals),
+          productions_(productions) {
 
         // Check if the start symbol is a non-terminal and is in the set of non-terminals
         if (start_symbol_.type != Symbol::Type::NONTERMINAL ||

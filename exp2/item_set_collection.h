@@ -8,15 +8,18 @@
 #include <memory>
 #include <map>
 #include <algorithm>
+#include <fstream>
+#include <cassert>
 #include "item_set.h"
 #include "grammar.h"
+#include "lr1_table.h"
 
 class ItemSetCollection {
 private:
     std::vector<ItemSet> item_sets_;
     Grammar grammar_;
-    // Use it to build LR(1) analysis table
-    std::map<std::pair<size_t, Symbol>, size_t> goto_table_;
+    // Use it to build LR(1) analysis table: goto and action
+    std::map<std::pair<size_t, Symbol>, size_t> go_;
 
     // Create const symbols
     const Symbol start_symbol;
@@ -139,11 +142,64 @@ public:
                 if(it == item_sets_.end()) {
                     item_sets_.push_back(new_item_set);
                 }
-                goto_table_[{i, symbol}] = it - item_sets_.begin();
+                go_[{i, symbol}] = it - item_sets_.begin();
             }
         }
     }
-        
+    
+    void GetLR1Table(std::ostream &out) {
+        std::map<std::pair<size_t, Symbol>, std::set<std::string>> out_table;
+        for(auto [key, value] : go_) {
+            if(key.second.type == Symbol::Type::TERMINAL) {
+                out_table[key].insert("s" + std::to_string(value));
+            }else{
+                out_table[key].insert(std::to_string(value));
+            }
+        }
+        for(int i = 0; i < item_sets_.size(); i ++){
+            for(const auto &item : item_sets_[i].items) {
+                if(item.production.right.size() == item.dot_position) {
+                    if(item.production.left == start_symbol) {
+                        out_table[{i, end_symbol}].insert("acc");
+                    }else{
+                        auto it = std::find(grammar_.GetProductions().begin(), grammar_.GetProductions().end(), item.production);
+                        assert(it != grammar_.GetProductions().end());
+                        out_table[{i, item.lookahead}].insert("r" + std::to_string(it - grammar_.GetProductions().begin()));
+                    }
+                }
+            }
+        } 
+        out << "id\t";
+        for(const auto &symbol : grammar_.GetTerminals()) {
+            out << symbol.name << "\t";
+        }
+        for(const auto &symbol : grammar_.GetNonTerminals()) {
+            out << symbol.name << "\t";
+        }
+        out << std::endl;
+        for(int i = 0; i < item_sets_.size(); i++) {
+            out << i << "\t";
+            for(const auto &symbol : grammar_.GetTerminals()) {
+                out << "(";
+                if(out_table.count({i, symbol})) {
+                    for(auto &s : out_table[{i, symbol}]) {
+                        out << s << " ";
+                    }
+                }
+                out << ")\t";
+            }
+            for(const auto &symbol : grammar_.GetNonTerminals()) {
+                out << "(";
+                if(out_table.count({i, symbol})) {
+                    for(auto &s : out_table[{i, symbol}]) {
+                        out << s << " ";
+                    }
+                }
+                out << ")\t";
+            }
+            out << std::endl;
+        }
+    }
 };
 
 #endif  // ITEM_SET_COLLECTION_H_

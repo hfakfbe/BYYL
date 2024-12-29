@@ -14,6 +14,12 @@ public:
     bool operator==(const Symbol& other) const {
         return name == other.name && type == other.type;
     }
+    bool operator<(const Symbol& other) const {
+        if(name == other.name) {
+            return type < other.type;
+        }
+        return name < other.name;
+    }
 };
 
 #endif  // SYMBOL_H_
