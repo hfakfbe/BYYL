@@ -14,15 +14,18 @@
 class ItemSetCollection {
 private:
     std::vector<ItemSet> item_sets_;
-    std::map<std::pair<size_t, Symbol>, size_t> goto_table_;
     Grammar grammar_;
+    // Use it to build LR(1) analysis table
+    std::map<std::pair<size_t, Symbol>, size_t> goto_table_;
 
     // Create const symbols
     const Symbol start_symbol;
     const Symbol end_symbol;
     const Symbol epsilon_symbol;
+    // First(A), A is a non-terminal symbol
+    std::map<Symbol, std::set<Symbol>> first_;
 
-    // find next symbols
+    // find next symbols w.r.t. item set
     std::set<Symbol> FindNextSymbols_(const ItemSet &item_set) {
         std::set<Symbol> symbols;
         for(const auto &item : item_set.items) {
@@ -33,38 +36,50 @@ private:
         return symbols;
     }
 
-    // find first of all nonterminals from grammar 
-    void FindFirst_(){
-        static std::map<Symbol, std::set<Symbol>> first;
-
+    // find first
+    // input Y1Y2...Yk
+    // output FIRST(Y1Y2...Yk)
+    std::set<Symbol> GetFirst4Candidate(std::vector<Symbol> right){
+        if(right.size() == 0) {
+            return {epsilon_symbol};
+        }
+        std::set<Symbol> ret = first_[right[0]];
+        ret.erase(epsilon_symbol);
+        int is_eps = 1;
+        for(int i = 1; i < right.size(); i++) {
+            if(first_[right[i]].count(epsilon_symbol)) {
+                ret.insert(first_[right[i]].begin(), first_[right[i]].end());
+                ret.erase(epsilon_symbol);
+            }else{
+                is_eps = 0;
+                break;
+            }
+        }
+        if(is_eps && first_[right.back()].count(epsilon_symbol)) {
+            ret.insert(epsilon_symbol);
+        }
+        return ret;
     }
 
-    // find first for candidate
-
-
-    // find first
-    std::set<Symbol> FindFirstSymbols_(const std::vector<Symbol> &symbols) {
-        std::set<Symbol> first;
-        for(const auto &symbol : symbols) {
-            if(symbol.type == Symbol::Type::TERMINAL) {
-                first.insert(symbol);
-                return first;
-            }else if(symbol.type == Symbol::Type::NONTERMINAL) {
-                auto nfirst = FindFirst_(symbol);
-                int eps = 0;
-                if(nfirst.count(epsilon_symbol)) {
-                    eps = 1;
-                    nfirst.erase(epsilon_symbol);
+    // find first of all nonterminals from grammar 
+    void FindFirst_(){
+        int inc = 1;
+        while(inc){
+            for(auto &production : grammar_.GetProductions()) {
+                std::set<Symbol> first_right = GetFirst4Candidate(production.right);
+                for(auto &symbol : first_right) {
+                    if(first_[production.left].count(symbol) == 0) {
+                        first_[production.left].insert(symbol);
+                        inc = 1;
+                    }
                 }
-                first.insert(nfirst.begin(), nfirst.end());
-                if(eps == 0) {
-                    return first;
-                }   
             }
         }
     }
 
     // find next item, actually compute closure
+    // input item
+    // output closure({item})
     std::set<Item> FindNextItems_(const Item &item) {
         std::set<Item> items;
         if(item.production.right.size() > item.dot_position) {
@@ -73,7 +88,7 @@ private:
                 // Find first
                 auto right = item.production.right;
                 right.push_back(item.lookahead);
-                std::set<Symbol> lookaheads = FindFirst_(std::vector<Symbol>(right.begin() + item.dot_position + 1, right.end()));
+                std::set<Symbol> lookaheads = GetFirst4Candidate(std::vector<Symbol>(right.begin() + item.dot_position + 1, right.end()));
                 for(const auto &production : grammar_.GetProductions()) {
                     if(production.left == next_symbol) {
                         for(const auto &lookahead : lookaheads) {
@@ -91,8 +106,16 @@ public:
         start_symbol("S'", Symbol::Type::NONTERMINAL), 
         end_symbol("#", Symbol::Type::TERMINAL), 
         epsilon_symbol("eps", Symbol::Type::TERMINAL) {
-        // Create the initial item set
+        // Augmented grammar
         Production initial_production(start_symbol, {grammar.GetStartSymbol()});
+        auto augprods = grammar.GetProductions();
+        augprods.push_back(initial_production);
+        auto augnont = grammar.GetNonTerminals();
+        augnont.insert(start_symbol);
+        grammar_ = Grammar(start_symbol, grammar.GetTerminals(), augnont, augprods);
+        // Initialize First(A) for all non-terminals A
+        FindFirst_();
+        // Create the initial item set
         ItemSet initial_item_set({Item(initial_production, 0, end_symbol)});
         item_sets_.push_back(initial_item_set);
         // Create the item sets
