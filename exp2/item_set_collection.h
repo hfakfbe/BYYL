@@ -8,7 +8,7 @@
 #include <memory>
 #include <map>
 #include <algorithm>
-#include <fstream>
+#include <iostream>
 #include <cassert>
 #include "item_set.h"
 #include "grammar.h"
@@ -25,7 +25,7 @@ private:
     const Symbol start_symbol;
     const Symbol end_symbol;
     const Symbol epsilon_symbol;
-    // First(A), A is a non-terminal symbol
+    // First(A), A can be both terminal and nonterminal symbol
     std::map<Symbol, std::set<Symbol>> first_;
 
     // find next symbols w.r.t. item set
@@ -42,7 +42,7 @@ private:
     // find first
     // input Y1Y2...Yk
     // output FIRST(Y1Y2...Yk)
-    std::set<Symbol> GetFirst4Candidate(std::vector<Symbol> right){
+    std::set<Symbol> GetFirst4Candidate_(std::vector<Symbol> right){
         if(right.size() == 0) {
             return {epsilon_symbol};
         }
@@ -50,7 +50,7 @@ private:
         ret.erase(epsilon_symbol);
         int is_eps = 1;
         for(int i = 1; i < right.size(); i++) {
-            if(first_[right[i]].count(epsilon_symbol)) {
+            if(first_[right[i - 1]].count(epsilon_symbol)) {
                 ret.insert(first_[right[i]].begin(), first_[right[i]].end());
                 ret.erase(epsilon_symbol);
             }else{
@@ -66,10 +66,17 @@ private:
 
     // find first of all nonterminals from grammar 
     void FindFirst_(){
+        for(auto &nonterminal : grammar_.GetNonTerminals()) {
+            first_[nonterminal] = {};
+        }
+        for(auto &terminal : grammar_.GetTerminals()) {
+            first_[terminal] = {terminal};
+        }
         int inc = 1;
         while(inc){
+            inc = 0;
             for(auto &production : grammar_.GetProductions()) {
-                std::set<Symbol> first_right = GetFirst4Candidate(production.right);
+                std::set<Symbol> first_right = GetFirst4Candidate_(production.right);
                 for(auto &symbol : first_right) {
                     if(first_[production.left].count(symbol) == 0) {
                         first_[production.left].insert(symbol);
@@ -83,19 +90,30 @@ private:
     // find next item, actually compute closure
     // input item
     // output closure({item})
-    std::set<Item> FindNextItems_(const Item &item) {
+    std::set<Item> Closure_(const Item &item_) {
         std::set<Item> items;
-        if(item.production.right.size() > item.dot_position) {
-            Symbol next_symbol = item.production.right[item.dot_position];
-            if(next_symbol.type == Symbol::Type::NONTERMINAL) {
-                // Find first
-                auto right = item.production.right;
-                right.push_back(item.lookahead);
-                std::set<Symbol> lookaheads = GetFirst4Candidate(std::vector<Symbol>(right.begin() + item.dot_position + 1, right.end()));
-                for(const auto &production : grammar_.GetProductions()) {
-                    if(production.left == next_symbol) {
-                        for(const auto &lookahead : lookaheads) {
-                            items.insert(Item(production, 0, lookahead));
+        items.insert(item_);
+        int inc = 1;
+        while(inc){
+            inc = 0;
+            for(const auto &item : items) {
+                if(item.production.right.size() > item.dot_position) {
+                    Symbol next_symbol = item.production.right[item.dot_position];
+                    if(next_symbol.type == Symbol::Type::NONTERMINAL) {
+                        // Find first
+                        auto right = item.production.right;
+                        right.push_back(item.lookahead);
+                        std::set<Symbol> lookaheads = GetFirst4Candidate_(std::vector<Symbol>(right.begin() + item.dot_position + 1, right.end()));
+                        for(const auto &production : grammar_.GetProductions()) {
+                            if(production.left == next_symbol) {
+                                for(const auto &lookahead : lookaheads) {
+                                    auto t = Item(production, 0, lookahead);
+                                    if(!items.count(t)) {
+                                        items.insert(t);
+                                        inc = 1;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -115,11 +133,14 @@ public:
         augprods.push_back(initial_production);
         auto augnont = grammar.GetNonTerminals();
         augnont.insert(start_symbol);
-        grammar_ = Grammar(start_symbol, grammar.GetTerminals(), augnont, augprods);
+        auto augterm = grammar.GetTerminals();
+        augterm.insert(end_symbol);
+        grammar_ = Grammar(start_symbol, augterm, augnont, augprods);
         // Initialize First(A) for all non-terminals A
         FindFirst_();
         // Create the initial item set
-        ItemSet initial_item_set({Item(initial_production, 0, end_symbol)});
+        auto initial_item = Item(initial_production, 0, end_symbol);
+        ItemSet initial_item_set(Closure_(initial_item));
         item_sets_.push_back(initial_item_set);
         // Create the item sets
         for(int i = 0; i < item_sets_.size(); i++) {
@@ -130,19 +151,19 @@ public:
                 // For each item
                 for(const auto &item : item_sets_[i].items) {
                     if(item.production.right.size() > item.dot_position && item.production.right[item.dot_position] == symbol) {
-                        std::set<Item> next_items = FindNextItems_(Item(item.production, item.dot_position + 1, item.lookahead));
+                        std::set<Item> next_items = Closure_(Item(item.production, item.dot_position + 1, item.lookahead));
                         new_items.insert(next_items.begin(), next_items.end());
                     }
                 }
-                if(new_items.size() == 0) {
-                    continue;
-                }
+                assert(new_items.size() > 0);
                 ItemSet new_item_set(new_items);
                 auto it = std::find(item_sets_.begin(), item_sets_.end(), new_item_set);
                 if(it == item_sets_.end()) {
                     item_sets_.push_back(new_item_set);
+                    go_[{i, symbol}] = item_sets_.size() - 1;
+                }else{
+                    go_[{i, symbol}] = it - item_sets_.begin();
                 }
-                go_[{i, symbol}] = it - item_sets_.begin();
             }
         }
     }
@@ -169,6 +190,28 @@ public:
                 }
             }
         } 
+
+        auto item_to_string = [](const Item &item) {
+            std::string right = "";
+            for(int i = 0; i < item.production.right.size(); i++) {
+                if(i == item.dot_position) {
+                    right += ".";
+                }
+                right += item.production.right[i].name;
+            }
+            if(item.dot_position == item.production.right.size()) {
+                right += ".";
+            }
+            return item.production.left.name + " -> " + right + ", " + item.lookahead.name;
+        };
+        for(int i = 0; i < item_sets_.size(); i++) {
+            out << "Item set " << i << std::endl;
+            for(const auto &item : item_sets_[i].items) {
+                out << item_to_string(item) << std::endl;
+            }
+            out << std::endl;
+        }
+
         out << "id\t";
         for(const auto &symbol : grammar_.GetTerminals()) {
             out << symbol.name << "\t";
