@@ -168,7 +168,7 @@ public:
         }
     }
     
-    void GetLR1Table(std::ostream &out) {
+    void OutLR1Table(std::ostream &out) {
         std::map<std::pair<size_t, Symbol>, std::set<std::string>> out_table;
         for(auto [key, value] : go_) {
             if(key.second.type == Symbol::Type::TERMINAL) {
@@ -191,23 +191,23 @@ public:
             }
         } 
 
-        out << "id, ";
+        out << "id";
         for(const auto &symbol : grammar_.GetTerminals()) {
-            out << symbol.name << ", ";
+            out << ", " << symbol.name;
         }
         for(const auto &symbol : grammar_.GetNonTerminals()) {
-            out << symbol.name << ", ";
+            out << ", " << symbol.name;
         }
         out << std::endl;
         for(int i = 0; i < item_sets_.size(); i++) {
-            out << i << ", ";
+            out << i;
             for(const auto &symbol : grammar_.GetTerminals()) {
+                out << ", ";
                 if(out_table.count({i, symbol})) {
                     for(auto &s : out_table[{i, symbol}]) {
                         out << s << " ";
                     }
                 }
-                out << ", ";
             }
             for(const auto &symbol : grammar_.GetNonTerminals()) {
                 out << ", ";
@@ -216,13 +216,12 @@ public:
                         out << s << " ";
                     }
                 }
-                out << ", ";
             }
             out << std::endl;
         }
     }
     
-    void GetItems(std::ostream &out) {
+    void OutItems(std::ostream &out) {
         auto item_to_string = [](const Item &item) {
             std::string right = "";
             for(int i = 0; i < item.production.right.size(); i++) {
@@ -243,6 +242,14 @@ public:
             }
             out << std::endl;
         }
+    }
+
+    const std::vector<ItemSet> &GetItemSets() const {
+        return item_sets_;
+    }
+
+    const Grammar &GetGrammar() const {
+        return grammar_;
     }
 };
 

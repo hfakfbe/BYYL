@@ -1,5 +1,7 @@
 #include <iostream>
+#include <fstream>
 #include "item_set_collection.h"
+#include "lr1_parser.h"
 
 void test1(){
     Symbol S("S", Symbol::Type::NONTERMINAL);
@@ -16,7 +18,7 @@ void test1(){
     std::vector<Production> productions = {p1, p2, p3, p4};
     Grammar grammar(S, terminals, non_terminals, productions);
     ItemSetCollection item_set_collection(grammar);
-    item_set_collection.GetLR1Table(std::cout);
+    item_set_collection.OutLR1Table(std::cout);
 }
 
 void test2(){
@@ -32,7 +34,7 @@ void test2(){
     std::vector<Production> productions = {p1, p2, p3};
     Grammar grammar(S, terminals, non_terminals, productions);
     ItemSetCollection item_set_collection(grammar);
-    item_set_collection.GetLR1Table(std::cout);
+    item_set_collection.OutLR1Table(std::cout);
 }
 
 void test3(){
@@ -51,7 +53,7 @@ void test3(){
     std::vector<Production> productions = {p1, p2, p3, p4};
     Grammar grammar(E, terminals, non_terminals, productions);
     ItemSetCollection item_set_collection(grammar);
-    item_set_collection.GetLR1Table(std::cout);
+    item_set_collection.OutLR1Table(std::cout);
 }
 
 void test4(){
@@ -71,7 +73,7 @@ void test4(){
     std::vector<Production> productions = {p1, p2, p3, p4, p5};
     Grammar grammar(R, terminals, non_terminals, productions);
     ItemSetCollection item_set_collection(grammar);
-    item_set_collection.GetLR1Table(std::cout);
+    item_set_collection.OutLR1Table(std::cout);
 }
 
 void test5(){
@@ -90,9 +92,37 @@ void test5(){
     std::vector<Production> productions = {p1, p2, p3, p4};
     Grammar grammar(E, terminals, non_terminals, productions);
     ItemSetCollection item_set_collection(grammar);
-    item_set_collection.GetLR1Table(std::cout);
+    item_set_collection.OutLR1Table(std::cout);
+}
+
+void lr1_parser_test(){
+    Symbol S("S", Symbol::Type::NONTERMINAL);
+    Symbol A("A", Symbol::Type::NONTERMINAL);
+    Symbol a("a", Symbol::Type::TERMINAL);
+    Symbol b("b", Symbol::Type::TERMINAL);
+    Symbol c("c", Symbol::Type::TERMINAL);
+    Production p1(S, {a, A});
+    Production p2(A, {b, A});
+    Production p3(A, {c});
+    std::set<Symbol> non_terminals = {S, A};
+    std::set<Symbol> terminals = {a, b, c};
+    std::vector<Production> productions = {p1, p2, p3};
+    Grammar grammar(S, terminals, non_terminals, productions);
+    ItemSetCollection item_set_collection(grammar);
+    grammar = item_set_collection.GetGrammar(); // augment grammar
+
+    std::fstream file("test.csv", std::ios::out);
+    if(!file.is_open()){
+        std::cerr << "Not opened" << std::endl;
+    }
+    item_set_collection.OutLR1Table(file);
+    file.close();
+    file.open("test.csv", std::ios::in);
+    LR1Table table(file, grammar);
+    LR1Parser parser(table);
+    parser.Parse({a, b, b, c});
 }
 
 int main(){
-    test5();
+    lr1_parser_test();
 }

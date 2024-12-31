@@ -48,15 +48,15 @@ private:
         // check terminal
         for(auto &symbol : grammar_.GetTerminals()) {
             auto sym = Symbol(symbol.name, Symbol::Type::TERMINAL);
-            auto it = std::find(header.begin(), header.end(), sym);
-            assert(it != header.end());
+            auto it = std::find(symbols.begin(), symbols.end(), sym);
+            assert(it != symbols.end());
         }
         // check non-terminal
         for(auto &symbol : grammar_.GetNonTerminals()) {
             auto sym = Symbol(symbol.name, Symbol::Type::TERMINAL);
-            auto it = std::find(header.begin(), header.end(), sym);
-            assert(it != header.end());
-            symbols[it - header.begin()].type = Symbol::Type::NONTERMINAL;
+            auto it = std::find(symbols.begin(), symbols.end(), sym);
+            assert(it != symbols.end());
+            symbols[it - symbols.begin()].type = Symbol::Type::NONTERMINAL;
         }
         return symbols;
     }
@@ -99,23 +99,23 @@ public:
         }
     }
     
-    const std::map<std::pair<size_t, Symbol>, size_t> &GetGoto() {
+    const std::map<std::pair<size_t, Symbol>, size_t> &GetGoto() const {
         return goto_;
     }
 
-    const std::map<std::pair<size_t, Symbol>, std::pair<char, size_t>> &GetAction() {
+    const std::map<std::pair<size_t, Symbol>, std::pair<char, size_t>> &GetAction() const {
         return action_;
     }
 
-    const Grammar &GetGrammar() {
+    const Grammar &GetGrammar() const {
         return grammar_;
     }
 
-    const Symbol &GetStartSymbol() {
+    const Symbol &GetStartSymbol() const {
         return start_symbol;
     }
 
-    const Symbol &GetEndSymbol() {
+    const Symbol &GetEndSymbol() const {
         return end_symbol;
     }
 };

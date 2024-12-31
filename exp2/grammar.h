@@ -18,16 +18,16 @@ private:
     Symbol start_symbol_;
 
 public:
-    Symbol GetStartSymbol() const { 
+    const Symbol &GetStartSymbol() const { 
         return start_symbol_; 
     }
-    const std::vector<Production>& GetProductions() const { 
+    const std::vector<Production> &GetProductions() const { 
         return productions_; 
     }
-    std::set<Symbol> GetNonTerminals() const {
+    const std::set<Symbol> &GetNonTerminals() const {
         return non_terminals_;
     }
-    std::set<Symbol> GetTerminals() const {
+    const std::set<Symbol> &GetTerminals() const {
         return terminals_;
     }
 
