@@ -1,3 +1,5 @@
 **/*.o
 **/.vscode
 **/Main
+**/test
+**/*.txt

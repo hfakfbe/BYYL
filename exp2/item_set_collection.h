@@ -191,6 +191,38 @@ public:
             }
         } 
 
+        out << "id, ";
+        for(const auto &symbol : grammar_.GetTerminals()) {
+            out << symbol.name << ", ";
+        }
+        for(const auto &symbol : grammar_.GetNonTerminals()) {
+            out << symbol.name << ", ";
+        }
+        out << std::endl;
+        for(int i = 0; i < item_sets_.size(); i++) {
+            out << i << ", ";
+            for(const auto &symbol : grammar_.GetTerminals()) {
+                if(out_table.count({i, symbol})) {
+                    for(auto &s : out_table[{i, symbol}]) {
+                        out << s << " ";
+                    }
+                }
+                out << ", ";
+            }
+            for(const auto &symbol : grammar_.GetNonTerminals()) {
+                out << ", ";
+                if(out_table.count({i, symbol})) {
+                    for(auto &s : out_table[{i, symbol}]) {
+                        out << s << " ";
+                    }
+                }
+                out << ", ";
+            }
+            out << std::endl;
+        }
+    }
+    
+    void GetItems(std::ostream &out) {
         auto item_to_string = [](const Item &item) {
             std::string right = "";
             for(int i = 0; i < item.production.right.size(); i++) {
@@ -208,37 +240,6 @@ public:
             out << "Item set " << i << std::endl;
             for(const auto &item : item_sets_[i].items) {
                 out << item_to_string(item) << std::endl;
-            }
-            out << std::endl;
-        }
-
-        out << "id\t";
-        for(const auto &symbol : grammar_.GetTerminals()) {
-            out << symbol.name << "\t";
-        }
-        for(const auto &symbol : grammar_.GetNonTerminals()) {
-            out << symbol.name << "\t";
-        }
-        out << std::endl;
-        for(int i = 0; i < item_sets_.size(); i++) {
-            out << i << "\t";
-            for(const auto &symbol : grammar_.GetTerminals()) {
-                out << "(";
-                if(out_table.count({i, symbol})) {
-                    for(auto &s : out_table[{i, symbol}]) {
-                        out << s << " ";
-                    }
-                }
-                out << ")\t";
-            }
-            for(const auto &symbol : grammar_.GetNonTerminals()) {
-                out << "(";
-                if(out_table.count({i, symbol})) {
-                    for(auto &s : out_table[{i, symbol}]) {
-                        out << s << " ";
-                    }
-                }
-                out << ")\t";
             }
             out << std::endl;
         }

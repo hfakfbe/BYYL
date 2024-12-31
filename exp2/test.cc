@@ -54,6 +54,45 @@ void test3(){
     item_set_collection.GetLR1Table(std::cout);
 }
 
+void test4(){
+    Symbol R("R", Symbol::Type::NONTERMINAL);
+    Symbol unio("|", Symbol::Type::TERMINAL);
+    Symbol star("*", Symbol::Type::TERMINAL);
+    Symbol lbr("(", Symbol::Type::TERMINAL);
+    Symbol rbr(")", Symbol::Type::TERMINAL);
+    Symbol a("a", Symbol::Type::TERMINAL);
+    Production p1(R, {R, unio, R});
+    Production p2(R, {R, R});
+    Production p3(R, {R, star});
+    Production p4(R, {lbr, R, rbr});
+    Production p5(R, {a});
+    std::set<Symbol> non_terminals = {R};
+    std::set<Symbol> terminals = {unio, star, lbr, rbr, a};
+    std::vector<Production> productions = {p1, p2, p3, p4, p5};
+    Grammar grammar(R, terminals, non_terminals, productions);
+    ItemSetCollection item_set_collection(grammar);
+    item_set_collection.GetLR1Table(std::cout);
+}
+
+void test5(){
+    Symbol E("E", Symbol::Type::NONTERMINAL);
+    Symbol ml("*", Symbol::Type::TERMINAL);
+    Symbol pw("^", Symbol::Type::TERMINAL);
+    Symbol lbr("(", Symbol::Type::TERMINAL);
+    Symbol rbr(")", Symbol::Type::TERMINAL);
+    Symbol i("i", Symbol::Type::TERMINAL);
+    Production p1(E, {E, ml, E});
+    Production p2(E, {E, pw, E});
+    Production p3(E, {lbr, E, rbr});
+    Production p4(E, {i});
+    std::set<Symbol> non_terminals = {E};
+    std::set<Symbol> terminals = {ml, pw, lbr, rbr, i};
+    std::vector<Production> productions = {p1, p2, p3, p4};
+    Grammar grammar(E, terminals, non_terminals, productions);
+    ItemSetCollection item_set_collection(grammar);
+    item_set_collection.GetLR1Table(std::cout);
+}
+
 int main(){
-    test1();
+    test5();
 }
