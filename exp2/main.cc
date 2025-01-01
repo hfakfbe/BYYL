@@ -153,13 +153,25 @@ SyntaxParser MakeParser(){
     return parser;
 }
 
+void Lex(){
+    std::string line;
+    std::ofstream fout("lex.txt");
+    while(std::getline(std::cin, line)){
+        fout << line << std::endl;
+    }
+    fout.close();
+    system("./lex < lex.txt > tokens.txt");
+}
+
 std::vector<Symbol> GetTokens(){
+    Lex();
+    std::ifstream fin("tokens.txt");
     // a IDENT
     // 3 INT
     // 1.2 DOUBLE
     std::string s, t;
     std::vector<Symbol> tokens;
-    while(std::cin >> s >> t){
+    while(fin >> s >> t){
         Symbol sym(s, Symbol::Type::TERMINAL);
         if(t == "INT"){
             sym.name = "UINT";

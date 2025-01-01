@@ -656,6 +656,11 @@ private:
         }
         std::cout << std::endl << std::endl;
     }
+
+    void SyntaxError_(){
+        std::cout << "Syntax Error";
+        exit(1);
+    }
 public:
     SyntaxParser(const LR1Table &table, const std::vector<Production> &p)
          : LR1Parser(table), attr_runner_(p) {}
@@ -673,7 +678,7 @@ public:
         }
         // parse
         while(true) {
-            Print_(state_stack, token_stack);
+            // Print_(state_stack, token_stack);
             // Get action
             int state = state_stack.back();
             Symbol token = token_stack.back();
@@ -699,16 +704,16 @@ public:
                 state = state_stack.back();
                 auto it = table_.GetGoto().find({state, production.left});
                 if(it == table_.GetGoto().end()) {
-                    std::cerr << "Error: no goto for state " << state << " and symbol " << production.left.name << std::endl;
-                    break;
+                    // std::cerr << "Error: no goto for state " << state << " and symbol " << production.left.name << std::endl;
+                    SyntaxError_();
                 }
                 state_stack.push_back(it->second);
             }else if(action.first == 'a') {
-                std::cout << "Accept" << std::endl;
+                // std::cout << "Accept" << std::endl;
                 break;
             }else{
-                std::cerr << "Error: unknown action " << action.first << std::endl;
-                break;
+                // std::cerr << "Error: unknown action " << action.first << std::endl;
+                SyntaxError_();
             }
         }
         return attr_runner_.GetICode();
