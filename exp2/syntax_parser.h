@@ -9,9 +9,9 @@
 
 class SyntaxSymbol : public Symbol {
 public:
-    int width;
-    size_t quad, place, nextlist, truelist, falselist; // save indices
-    std::string name, type, op;
+    int width = -1;
+    int quad = -1, place = -1, nextlist = -1, truelist = -1, falselist = -1; // save indices
+    std::string type, op;
 
     SyntaxSymbol(const std::string &name, Type type) : Symbol(name, type) {}
 
@@ -38,15 +38,21 @@ private:
     ICode icode_;
     int nxq_, offset_, temp_count_;
 
-    void BackPatch_(size_t qid, int nxq){
+    void BackPatch_(int qid, int nxq){
         // 回填函数，将 quad[qid] 的第四个元素（跳转目标）设置为 nxq
-        for (size_t i = 0; i < icode_.quad.size(); ++i) {
-            if (std::to_string(qid) == icode_.quad[i][3]) {
-                icode_.quad[i][3] = std::to_string(nxq);
-            }
+        while(qid != -1) {
+            int nq = std::stoi(icode_.quad[qid][3]);
+            icode_.quad[qid][3] = std::to_string(nxq);
+            qid = nq;
         }
     }
     void Enter_(const std::string& name, const std::string& type, int offset){
+        // 重名
+        for(int i = 0; i < icode_.symbol_table.size(); i ++){
+            if(icode_.symbol_table[i].name == name){
+                SyntaxError_();
+            }
+        }
         // 在符号表中创建新条目
         SymbolTableEntry entry;
         entry.name = name;
@@ -59,54 +65,68 @@ private:
         icode_.quad.push_back({op, arg1, arg2, result});
         nxq_++;
     }
-    size_t Merge_(const size_t& head1, const size_t& head2) {
+    int Merge_(int head1, int head2) {
         if(head1 == -1) {
             return head2;
         }
         if(head2 == -1) {
             return head1;
         }
-        size_t head = head2;
-        while(icode_.quad[head][3] != "null") {
+        int head = head2;
+        while(icode_.quad[head][3] != "-1") {
             head = std::stoi(icode_.quad[head][3]);
         }
         icode_.quad[head][3] = std::to_string(head1);
         return head2;
     }
 
-    size_t NewTemp_(std::string type){
-        std::string temp_name = "T" + std::to_string(temp_count_ ++) + "_" + type[0];
+    int NewTemp_(std::string type){
         SymbolTableEntry entry;
-        entry.name = temp_name;
-        entry.type = "temp"; // 可以根据需要设置类型
+        entry.name = "T" + std::to_string(temp_count_ ++) + "_" + type[0];
+        entry.type = type.substr(0, 1) + "temp"; // 可以根据需要设置类型
         entry.offset = -1;    // 临时变量通常不分配实际的内存地址
         icode_.symbol_table.push_back(entry);
         return icode_.symbol_table.size() - 1; // 返回临时变量在符号表中的索引
     }
 
-    const SymbolTableEntry &Lookup_(const std::string& name){
+    int Lookup_(const std::string& name){
+        // std::cout << "Lookup " << name << std::endl;
         // 查找符号表
-        for (const auto& entry : icode_.symbol_table) {
-            if (entry.name == name) {
-                return entry;
+        for(int i = 0; i < icode_.symbol_table.size(); i ++){
+            if(icode_.symbol_table[i].name == name){
+                return i;
             }
         }
         // 如果找不到，可以返回一个特殊的条目或者抛出异常
         SyntaxError_();
-        return icode_.symbol_table[0];
+        return -1;
     }
 
-    size_t Mklist_(int quad_index){
+    int Mklist_(int quad_index){
         if(quad_index == -1) {
             return -1;
         }
-        icode_.quad[quad_index][3] = "null";
+        icode_.quad[quad_index][3] = "-1";
         return quad_index;
     }
 
     void SyntaxError_(){
         std::cout << "Syntax Error";
         exit(1);
+    }
+
+    std::string TableName_(int idx){
+        int cnt = 0;
+        for(int i = 0; i < idx; i ++){
+            if(icode_.symbol_table[i].type.substr(1) != "temp"){
+                cnt ++;
+            }
+        }
+        if(icode_.symbol_table[idx].type.substr(1) == "temp"){
+            return "T" + std::to_string(idx - cnt) + "_" + icode_.symbol_table[idx].type[0];
+        }else{
+            return "TB" + std::to_string(cnt);
+        }
     }
 
     std::map<Production, std::function<void()>> actions_;
@@ -168,7 +188,7 @@ public:
         actions_[p[9]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 1;
-            Enter_(symbol_stack_[top].name, symbol_stack_[top - 1].type, offset_);
+            Enter_(symbol_stack_[top].value, symbol_stack_[top - 1].type, offset_);
             offset_ += symbol_stack_[top - 1].width;
             symbol_stack_[ntop].type = symbol_stack_[top - 1].type;
             symbol_stack_[ntop].width = symbol_stack_[top - 1].width;
@@ -177,7 +197,7 @@ public:
         actions_[p[10]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            Enter_(symbol_stack_[top].name, symbol_stack_[top - 2].type, offset_);
+            Enter_(symbol_stack_[top].value, symbol_stack_[top - 2].type, offset_);
             offset_ += symbol_stack_[top - 2].width;
             symbol_stack_[ntop].type = symbol_stack_[top - 2].type;
             symbol_stack_[ntop].width = symbol_stack_[top - 2].width;
@@ -209,8 +229,8 @@ public:
         // STATEMENT -> { L ; } {STATEMENT.nextlist=L.nextlist}
         actions_[p[15]] = [&](){
             int top = symbol_stack_.size() - 1;
-            int ntop = top - 2;
-            symbol_stack_[ntop].nextlist = symbol_stack_[top - 1].nextlist;
+            int ntop = top - 3;
+            symbol_stack_[ntop].nextlist = symbol_stack_[top - 2].nextlist;
         };
         // STATEMENT -> while N_1 B do N_2 STATEMENT_1 {backpatch(STATEMENT_1.nextlist,N_1.quad);backpatch(B.truelist,N_2.quad);STATEMENT.nextlist=B.falselist;gen(j,-,-,N_1.quad)}
         actions_[p[16]] = [&](){
@@ -224,17 +244,17 @@ public:
         // STATEMENT -> if B then N STATEMENT_1 {backpatch(B.truelist,N.quad),STATEMENT.nextlist=merge(B.falselist,STATEMENT_1.nextlist)}
         actions_[p[17]] = [&](){
             int top = symbol_stack_.size() - 1;
-            int ntop = top - 3;
-            BackPatch_(symbol_stack_[top - 2].truelist, symbol_stack_[top - 1].quad);
-            symbol_stack_[ntop].nextlist = Merge_(symbol_stack_[top - 2].falselist, symbol_stack_[top].nextlist);
+            int ntop = top - 4;
+            BackPatch_(symbol_stack_[top - 3].truelist, symbol_stack_[top - 1].quad);
+            symbol_stack_[ntop].nextlist = Merge_(symbol_stack_[top - 3].falselist, symbol_stack_[top].nextlist);
         };
         // ASSIGN -> ID = EXPR {p=lookup(ID.name);gen(=,EXPR.place,-,p) }
         actions_[p[18]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            const SymbolTableEntry& entry = Lookup_(symbol_stack_[top - 2].name);
-            int p = entry.offset;
-            Gen_("=", icode_.symbol_table[symbol_stack_[top].place].name, "-", std::to_string(p));
+            int entry = Lookup_(symbol_stack_[top - 2].value);
+            int t = symbol_stack_[top].place;
+            Gen_("=", TableName_(t), "-", TableName_(entry));
         };
         // L -> L_1 ; N STATEMENT {backpatch(L1.nextlist,N.quad),L.nextlist=STATEMENT.nextlist}
         actions_[p[19]] = [&](){
@@ -253,10 +273,10 @@ public:
         actions_[p[21]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            size_t temp_index = NewTemp_("int");
+            int temp_index = NewTemp_("int");
+            Gen_("||", icode_.symbol_table[symbol_stack_[top-2].place].name, icode_.symbol_table[symbol_stack_[top].place].name, icode_.symbol_table[temp_index].name);
             symbol_stack_[ntop].place = temp_index;
             symbol_stack_[ntop].type = "int";
-            Gen_("||", icode_.symbol_table[symbol_stack_[top-2].place].name, icode_.symbol_table[symbol_stack_[top].place].name, icode_.symbol_table[symbol_stack_[ntop].place].name);
         };
         // EXPR -> ORITEM {EXPR.place=ORITEM.place;EXPR.type=ORITEM.type}
         actions_[p[22]] = [&](){
@@ -269,10 +289,10 @@ public:
         actions_[p[23]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            size_t temp_index = NewTemp_("int");
+            int temp_index = NewTemp_("int");
+            Gen_("&&", icode_.symbol_table[symbol_stack_[top-2].place].name, icode_.symbol_table[symbol_stack_[top].place].name, icode_.symbol_table[temp_index].name);
             symbol_stack_[ntop].place = temp_index;
             symbol_stack_[ntop].type = "int";
-            Gen_("&&", icode_.symbol_table[symbol_stack_[top-2].place].name, icode_.symbol_table[symbol_stack_[top].place].name, icode_.symbol_table[symbol_stack_[ntop].place].name);
         };
         // ORITEM -> ANDITEM {ORITEM.place=ANDITEM.place;ORITEM.type=ANDITEM.type}
         actions_[p[24]] = [&](){
@@ -292,7 +312,7 @@ public:
         actions_[p[26]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 1;
-            size_t temp_index = NewTemp_("int");
+            int temp_index = NewTemp_("int");
             symbol_stack_[ntop].place = temp_index;
             symbol_stack_[ntop].type = "int";
             Gen_("!", icode_.symbol_table[symbol_stack_[top].place].name, "-", icode_.symbol_table[symbol_stack_[ntop].place].name);
@@ -301,10 +321,10 @@ public:
         actions_[p[27]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            size_t temp_index = NewTemp_("int");
+            int temp_index = NewTemp_("int");
+            Gen_(symbol_stack_[top - 1].op, TableName_(symbol_stack_[top - 2].place), TableName_(symbol_stack_[top].place), icode_.symbol_table[temp_index].name);
             symbol_stack_[ntop].place = temp_index;
             symbol_stack_[ntop].type = "int";
-            Gen_(symbol_stack_[top - 1].op, icode_.symbol_table[symbol_stack_[top - 2].place].name, icode_.symbol_table[symbol_stack_[top].place].name, icode_.symbol_table[symbol_stack_[ntop].place].name);
         };
         // NOITEM -> RELITEM {NOITEM.place=RELITEM.place;NOITEM.type=RELITEM.type}
         actions_[p[28]] = [&](){
@@ -317,10 +337,10 @@ public:
         actions_[p[29]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            size_t temp_index = NewTemp_(symbol_stack_[top - 2].type);
+            int temp_index = NewTemp_(symbol_stack_[top - 2].type);
+            Gen_(symbol_stack_[top - 1].op, TableName_(symbol_stack_[top - 2].place), TableName_(symbol_stack_[top].place), TableName_(temp_index));
             symbol_stack_[ntop].place = temp_index;
             symbol_stack_[ntop].type = symbol_stack_[top - 2].type;
-            Gen_(symbol_stack_[top - 1].op, icode_.symbol_table[symbol_stack_[top - 2].place].name, icode_.symbol_table[symbol_stack_[top].place].name, icode_.symbol_table[symbol_stack_[ntop].place].name);
         };
         // RELITEM -> ITEM {RELITEM.place=ITEM.place;RELITEM.type=ITEM.type}
         actions_[p[30]] = [&](){
@@ -340,36 +360,36 @@ public:
         actions_[p[32]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            size_t temp_index = NewTemp_(symbol_stack_[top].type);
+            int temp_index = NewTemp_(symbol_stack_[top].type);
+            Gen_(symbol_stack_[top - 1].op, TableName_(symbol_stack_[top - 2].place), TableName_(symbol_stack_[top].place), TableName_(temp_index));
             symbol_stack_[ntop].place = temp_index;
             symbol_stack_[ntop].type = symbol_stack_[top].type;
-            Gen_(symbol_stack_[top - 1].op, icode_.symbol_table[symbol_stack_[top - 2].place].name, icode_.symbol_table[symbol_stack_[top].place].name, icode_.symbol_table[symbol_stack_[ntop].place].name);
         };
         // FACTOR -> ID {FACTOR.place=lookup(ID.name);FACTOR.type=lookup_type(ID.name)}
         actions_[p[33]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top;
-            const SymbolTableEntry& entry = Lookup_(symbol_stack_[top].name);
-            symbol_stack_[ntop].place = icode_.symbol_table.size() - 1; // place 应该是 entry 在符号表中的索引
-            symbol_stack_[ntop].type = entry.type;
+            int entry = Lookup_(symbol_stack_[top].value);
+            symbol_stack_[ntop].place = entry; // place 应该是 entry 在符号表中的索引
+            symbol_stack_[ntop].type = icode_.symbol_table[entry].type;
         };
         // FACTOR -> UINT {FACTOR.place=newtemp(int);FACTOR.type=int;gen(=,UINT,-,FACTOR.place)}
         actions_[p[34]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top;
-            size_t temp_index = NewTemp_("int");
+            int temp_index = NewTemp_("int");
             symbol_stack_[ntop].place = temp_index;
             symbol_stack_[ntop].type = "int";
-            Gen_("=", symbol_stack_[top].name, "-", icode_.symbol_table[symbol_stack_[ntop].place].name);
+            Gen_("=", symbol_stack_[top].value, "-", TableName_(symbol_stack_[ntop].place));
         };
         // FACTOR -> UFLOAT {FACTOR.place=newtemp(double);FACTOR.type=double;gen(=,UFLOAT,-,FACTOR.place)}
         actions_[p[35]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top;
-            size_t temp_index = NewTemp_("double");
+            int temp_index = NewTemp_("double");
             symbol_stack_[ntop].place = temp_index;
             symbol_stack_[ntop].type = "double";
-            Gen_("=", symbol_stack_[top].name, "-", icode_.symbol_table[symbol_stack_[ntop].place].name);
+            Gen_("=", symbol_stack_[top].value, "-", TableName_(symbol_stack_[ntop].place));
         };
         // FACTOR -> ( EXPR ) {FACTOR.place=EXPR.place;FACTOR.type=EXPR.type}
         actions_[p[36]] = [&](){
@@ -382,10 +402,10 @@ public:
         actions_[p[37]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 1;
-            size_t temp_index = NewTemp_(symbol_stack_[top].type);
+            int temp_index = NewTemp_(symbol_stack_[top].type);
+            Gen_(symbol_stack_[top - 1].op, "0", TableName_(symbol_stack_[top].place), TableName_(temp_index));
             symbol_stack_[ntop].place = temp_index;
             symbol_stack_[ntop].type = symbol_stack_[top].type;
-            Gen_(symbol_stack_[top - 1].op, "0", icode_.symbol_table[symbol_stack_[top].place].name, icode_.symbol_table[symbol_stack_[ntop].place].name);
         };
         // B -> B_1 || N BORTERM {backpatch(B_1.falselist,N.quad);B.truelist=merge(B_1.truelist,BORTERM.truelist);B.falselist=BORTERM.falselist}
         actions_[p[38]] = [&](){
@@ -428,14 +448,15 @@ public:
         actions_[p[43]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 1;
+            int t = symbol_stack_[top].truelist;
             symbol_stack_[ntop].truelist = symbol_stack_[top].falselist;
-            symbol_stack_[ntop].falselist = symbol_stack_[top].truelist;
+            symbol_stack_[ntop].falselist = t;
         };
         // BANDTERM -> BFACTOR_1 REL BFACTOR_2 {BANDTERM.truelist=mklist(nxq);BANDTERM.falselist=mklist(nxq+1);gen(j+REL.op,BFACTOR_1.place,BFACTOR_2.place,0);gen(j,-,-,0);}
         actions_[p[44]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            Gen_("j" + symbol_stack_[top - 1].op, icode_.symbol_table[symbol_stack_[top-2].place].name, icode_.symbol_table[symbol_stack_[top].place].name, "0");
+            Gen_("j" + symbol_stack_[top - 1].op, TableName_(symbol_stack_[top - 2].place), TableName_(symbol_stack_[top].place), "0");
             Gen_("j", "-", "-", "0");
             symbol_stack_[ntop].truelist = Mklist_(nxq_ - 2);
             symbol_stack_[ntop].falselist = Mklist_(nxq_ - 1);
@@ -444,7 +465,7 @@ public:
         actions_[p[45]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top;
-            Gen_("jnz", icode_.symbol_table[symbol_stack_[top].place].name, "-", "0");
+            Gen_("jnz", TableName_(symbol_stack_[top].place), "-", "0");
             Gen_("j", "-", "-", "0");
             symbol_stack_[ntop].truelist = Mklist_(nxq_ - 2);
             symbol_stack_[ntop].falselist = Mklist_(nxq_ - 1);
@@ -453,27 +474,27 @@ public:
         actions_[p[46]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top;
-            size_t temp_index = NewTemp_("int");
+            int temp_index = NewTemp_("int");
             symbol_stack_[ntop].place = temp_index;
             symbol_stack_[ntop].type = "int";
-            Gen_("=", symbol_stack_[top].name, "-", icode_.symbol_table[symbol_stack_[ntop].place].name);
+            Gen_("=", symbol_stack_[top].value, "-", TableName_(symbol_stack_[ntop].place));
         };
         // BFACTOR -> UFLOAT {BFACTOR.place=newtemp(double);BFACTOR.type=double;gen(=,UFLOAT,-,BFACTOR.place)}
         actions_[p[47]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top;
-            size_t temp_index = NewTemp_("double");
+            int temp_index = NewTemp_("double");
             symbol_stack_[ntop].place = temp_index;
             symbol_stack_[ntop].type = "double";
-            Gen_("=", symbol_stack_[top].name, "-", icode_.symbol_table[symbol_stack_[ntop].place].name);
+            Gen_("=", symbol_stack_[top].value, "-", TableName_(symbol_stack_[ntop].place));
         };
         // BFACTOR -> ID {BFACTOR.place=lookup(ID.name);BFACTOR.type=lookup_type(ID.name)}
         actions_[p[48]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top;
-            const SymbolTableEntry& entry = Lookup_(symbol_stack_[top].name);
-            symbol_stack_[ntop].place = entry.offset; // 使用 offset
-            symbol_stack_[ntop].type = entry.type;
+            int entry = Lookup_(symbol_stack_[top].value);
+            symbol_stack_[ntop].place = entry;
+            symbol_stack_[ntop].type = icode_.symbol_table[entry].type;
         };
         // PLUS_MINUS -> + {PLUS_MINUS.op='+'}
         actions_[p[49]] = [&](){
@@ -543,15 +564,15 @@ public:
         actions_[p[60]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            int p = Lookup_(symbol_stack_[top].name).offset;
-            Gen_("R", "-", "-", std::to_string(p));
+            std::string p = TableName_(Lookup_(symbol_stack_[top].value));
+            Gen_("R", "-", "-", p);
         };
         // SCANF_BEGIN -> scanf ( ID {p=lookup(ID.name);gen(R,-,-,p)}
         actions_[p[61]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            int p = Lookup_(symbol_stack_[top].name).offset;
-            Gen_("R", "-", "-", std::to_string(p));
+            std::string p = TableName_(Lookup_(symbol_stack_[top].value));
+            Gen_("R", "-", "-", p);
         };
         // PRINTF -> PRINTF_BEGIN ) {}
         actions_[p[62]] = [&](){
@@ -561,15 +582,15 @@ public:
         actions_[p[63]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            int p = Lookup_(symbol_stack_[top].name).offset;
-            Gen_("W", "-", "-", std::to_string(p));
+            std::string p = TableName_(Lookup_(symbol_stack_[top].value));
+            Gen_("W", "-", "-", p);
         };
         // PRINTF_BEGIN -> PRINTF_BEGIN , ID {p=lookup(ID.name);gen(W,-,-,p)}
         actions_[p[64]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            int p = Lookup_(symbol_stack_[top].name).offset;
-            Gen_("W", "-", "-", std::to_string(p));
+            std::string p = TableName_(Lookup_(symbol_stack_[top].value));
+            Gen_("W", "-", "-", p);
         };
 
         Init();
@@ -622,7 +643,7 @@ class SyntaxParser : public LR1Parser {
 private:
     SyntaxAttrRunner attr_runner_;
 
-    void Print_(const std::vector<size_t> &state_stack, const std::vector<Symbol> &token_stack) {
+    void Print_(const std::vector<int> &state_stack, const std::vector<Symbol> &token_stack) {
         std::cout << "State Stack: ";
         for(const auto &state : state_stack) {
             std::cout << state << " ";
@@ -642,7 +663,7 @@ public:
     ICode Parse(const std::vector<Symbol> &tokens) {
         // init stacks
         attr_runner_.Init();
-        std::vector<size_t> state_stack;
+        std::vector<int> state_stack;
         std::vector<Symbol> token_stack;
         state_stack.push_back(0);
         attr_runner_.PushSymbol(table_.GetEndSymbol());
@@ -652,9 +673,9 @@ public:
         }
         // parse
         while(true) {
-            // Print_(state_stack, token_stack);
+            Print_(state_stack, token_stack);
             // Get action
-            size_t state = state_stack.back();
+            int state = state_stack.back();
             Symbol token = token_stack.back();
             auto it = table_.GetAction().find({state, token});
             if(it == table_.GetAction().end()) {

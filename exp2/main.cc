@@ -166,7 +166,7 @@ std::vector<Symbol> GetTokens(){
             sym.value = s;
         }else if(t == "DOUBLE"){
             sym.name = "UFLOAT";
-            sym.value = s;
+            sym.value = std::to_string(std::stod(s));
         }else if(t == "IDENT"){
             sym.name = "id";
             sym.value = s;
@@ -185,16 +185,17 @@ std::vector<Symbol> GetTokens(){
 void Output(const ICode &icode){
     int cnt_temp = 0, cnt = icode.symbol_table.size();
     for(int i = 0; i < cnt; i ++){
-        if(icode.symbol_table[i].type == "temp"){
+        if(icode.symbol_table[i].type.substr(1) == "temp"){
             cnt_temp ++;
         }
     }
     std::cout << cnt - cnt_temp << std::endl;
     for(int i = 0; i < cnt; i ++){
-        if(icode.symbol_table[i].type == "temp"){
+        if(icode.symbol_table[i].type.substr(1) == "temp"){
             continue;
         }
-        std::cout << icode.symbol_table[i].name << " " << icode.symbol_table[i].type << " " << icode.symbol_table[i].value << " " << icode.symbol_table[i].offset << std::endl;
+        std::string type = icode.symbol_table[i].type == "int" ? "0" : "1";
+        std::cout << icode.symbol_table[i].name << " " << type << " null " << icode.symbol_table[i].offset << std::endl;
     }
     std::cout << cnt_temp << std::endl;
     std::cout << icode.quad.size() << std::endl;
