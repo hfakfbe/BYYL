@@ -28,6 +28,10 @@ private:
             while(token.size() > 0 && token[token.size() - 1] == ' ') {
                 token = token.substr(0, token.size() - 1);
             }
+            // walkaround
+            if(token == "comma") {
+                token = ",";
+            }
             result.push_back(token);
         }
         return result;

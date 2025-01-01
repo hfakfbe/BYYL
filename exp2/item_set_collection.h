@@ -193,7 +193,13 @@ public:
 
         out << "id";
         for(const auto &symbol : grammar_.GetTerminals()) {
-            out << ", " << symbol.name;
+            out << ", ";
+            // walkaround
+            if(symbol.name == ","){
+                out << "comma";
+            }else{
+                out << symbol.name;
+            }
         }
         for(const auto &symbol : grammar_.GetNonTerminals()) {
             out << ", " << symbol.name;
