@@ -6,7 +6,7 @@
 
 class LR1Parser {
 protected:
-    const LR1Table &table_;
+    const LR1Table table_;
 
     void Print_(const std::vector<size_t> &state_stack, const std::vector<Symbol> &symbol_stack, const std::vector<Symbol> &token_stack) {
         std::cout << "State Stack: ";

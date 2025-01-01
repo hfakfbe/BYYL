@@ -122,7 +122,7 @@ private:
         return items;
     }
 public:
-    ItemSetCollection(const Grammar &grammar)
+    ItemSetCollection(const Grammar &grammar, int skip = 0)
         : grammar_(grammar), 
         start_symbol("S'", Symbol::Type::NONTERMINAL), 
         end_symbol("#", Symbol::Type::TERMINAL), 
@@ -136,6 +136,10 @@ public:
         auto augterm = grammar.GetTerminals();
         augterm.insert(end_symbol);
         grammar_ = Grammar(start_symbol, augterm, augnont, augprods);
+        // Skip the following steps if skip is set
+        if(skip){
+            return;
+        }
         // Initialize First(A) for all non-terminals A
         FindFirst_();
         // Create the initial item set

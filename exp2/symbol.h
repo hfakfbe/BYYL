@@ -6,7 +6,7 @@
 
 class Symbol {
 public:
-    std::string name;
+    std::string name, value;
     enum class Type { NONTERMINAL, TERMINAL } type;
 
     Symbol(const std::string& name, Type type)

@@ -93,6 +93,7 @@ private:
         }
         // 如果找不到，可以返回一个特殊的条目或者抛出异常
         SyntaxError_();
+        return icode_.symbol_table[0];
     }
 
     size_t Mklist_(int quad_index){
@@ -111,9 +112,7 @@ private:
     std::map<Production, std::function<void()>> actions_;
 
 public:
-    SyntaxAttrRunner(const Grammar &grammar) {
-        auto p = grammar.GetProductions();
-
+    SyntaxAttrRunner(const std::vector<Production> &p) {
         // PROG -> SUBPROG {}
         actions_[p[0]] = [&](){
 
@@ -436,19 +435,19 @@ public:
         actions_[p[44]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top - 2;
-            symbol_stack_[ntop].truelist = Mklist_(nxq_);
-            symbol_stack_[ntop].falselist = Mklist_(nxq_ + 1);
             Gen_("j" + symbol_stack_[top - 1].op, icode_.symbol_table[symbol_stack_[top-2].place].name, icode_.symbol_table[symbol_stack_[top].place].name, "0");
             Gen_("j", "-", "-", "0");
+            symbol_stack_[ntop].truelist = Mklist_(nxq_ - 2);
+            symbol_stack_[ntop].falselist = Mklist_(nxq_ - 1);
         };
         // BANDTERM -> BFACTOR {BANDTERM.truelist=mklist(nxq);BANDTERM.falselist=mklist(nxq+1);gen(jnz,BFACTOR.place,-,0);gen(j,-,-,0)}
         actions_[p[45]] = [&](){
             int top = symbol_stack_.size() - 1;
             int ntop = top;
-            symbol_stack_[ntop].truelist = Mklist_(nxq_);
-            symbol_stack_[ntop].falselist = Mklist_(nxq_ + 1);
             Gen_("jnz", icode_.symbol_table[symbol_stack_[top].place].name, "-", "0");
             Gen_("j", "-", "-", "0");
+            symbol_stack_[ntop].truelist = Mklist_(nxq_ - 2);
+            symbol_stack_[ntop].falselist = Mklist_(nxq_ - 1);
         };
         // BFACTOR -> UINT {BFACTOR.place=newtemp(int);BFACTOR.type=int;gen(=,UINT,-,FACTOR.place)}
         actions_[p[46]] = [&](){
@@ -589,6 +588,8 @@ public:
     }
 
     void Init() {
+        nxq_ = 0;
+        temp_count_ = 0;
         ClearStack();
         icode_.quad.clear();
         icode_.symbol_table.clear();
@@ -607,14 +608,36 @@ public:
         symbol_stack_.back().Symbol::name = production.left.name;
         symbol_stack_.back().Symbol::type = production.left.type;
     }
+
+    void Print() {
+        std::cout << "Symbol Stack: ";
+        for(const auto &symbol : symbol_stack_) {
+            std::cout << symbol.Symbol::name << " ";
+        }
+        std::cout << std::endl;
+    }
 };
 
 class SyntaxParser : public LR1Parser {
 private:
     SyntaxAttrRunner attr_runner_;
+
+    void Print_(const std::vector<size_t> &state_stack, const std::vector<Symbol> &token_stack) {
+        std::cout << "State Stack: ";
+        for(const auto &state : state_stack) {
+            std::cout << state << " ";
+        }
+        std::cout << std::endl;
+        attr_runner_.Print();
+        std::cout << "Token Stack: ";
+        for(const auto &token : token_stack) {
+            std::cout << token.name << " ";
+        }
+        std::cout << std::endl << std::endl;
+    }
 public:
-    SyntaxParser(const LR1Table &table)
-         : LR1Parser(table), attr_runner_(table.GetGrammar()) {}
+    SyntaxParser(const LR1Table &table, const std::vector<Production> &p)
+         : LR1Parser(table), attr_runner_(p) {}
 
     ICode Parse(const std::vector<Symbol> &tokens) {
         // init stacks
@@ -629,6 +652,7 @@ public:
         }
         // parse
         while(true) {
+            // Print_(state_stack, token_stack);
             // Get action
             size_t state = state_stack.back();
             Symbol token = token_stack.back();
