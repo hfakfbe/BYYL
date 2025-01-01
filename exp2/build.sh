@@ -2,4 +2,4 @@
 
 make
 
-g++ main.cc -o Main
+g++ main.cc -o Main -std=c++17

@@ -112,7 +112,7 @@ private:
 
     void SyntaxError_(){
         std::cout << "Syntax Error";
-        exit(1);
+        exit(0);
     }
 
     std::string TableName_(int idx){
@@ -659,7 +659,7 @@ private:
 
     void SyntaxError_(){
         std::cout << "Syntax Error";
-        exit(1);
+        exit(0);
     }
 public:
     SyntaxParser(const LR1Table &table, const std::vector<Production> &p)
@@ -684,8 +684,8 @@ public:
             Symbol token = token_stack.back();
             auto it = table_.GetAction().find({state, token});
             if(it == table_.GetAction().end()) {
-                std::cerr << "Error: no action for state " << state << " and token " << token.name << std::endl;
-                break;
+                // std::cerr << "Error: no action for state " << state << " and token " << token.name << std::endl;
+                SyntaxError_();
             }
             auto action = it->second;
             // Do action
