@@ -91,6 +91,10 @@ public:
                 }
             }
         }
+        // 字典序重排符号表
+        std::sort(symbol_table_.begin(), symbol_table_.end(), [](SymbolTableEntry &a, SymbolTableEntry &b){
+            return a.name < b.name;
+        });
     }
 
     // 输入：无

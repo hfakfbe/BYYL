@@ -23,12 +23,12 @@ Quadruple ParseQuad(std::string str){
 std::vector<Quadruple> ReadQuadruples() {
     int n;
     std::cin >> n;
-    std::vector<Quadruple> quadruples(n);
+    std::vector<Quadruple> quadruples;
     std::string op, arg1, arg2, result;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i ++) {
         std::string t;
         std::cin >> t >> t;
-        quadruples[i] = ParseQuad(t);
+        quadruples.push_back(ParseQuad(t));
     }
     return quadruples;
 }
@@ -36,13 +36,13 @@ std::vector<Quadruple> ReadQuadruples() {
 std::vector<SymbolTableEntry> ReadSymbolTable() {
     int n;
     std::cin >> n;
-    std::vector<SymbolTableEntry> symbol_table(n);
-    for (int i = 0; i < n; i++) {
+    std::vector<SymbolTableEntry> symbol_table;
+    for (int i = 0; i < n; i ++) {
         std::string name;
         int type, offset;
         std::string value;
         std::cin >> name >> type >> value >> offset;
-        symbol_table[i] = SymbolTableEntry(name);
+        symbol_table.push_back(SymbolTableEntry(name));
         symbol_table[i].type = type;
         symbol_table[i].value = value;
         symbol_table[i].offset = offset;
