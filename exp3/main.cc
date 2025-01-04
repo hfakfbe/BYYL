@@ -1,0 +1,63 @@
+#include "quad_processor.h"
+
+// (R,-,-,TB0)
+Quadruple ParseQuad(std::string str){
+    std::string op, arg1, arg2, result;
+    int id;
+    std::string::size_type pos = 0;
+    auto next = str.find(',', pos);
+    op = str.substr(pos + 1, next - pos - 1);
+    pos = next + 1;
+    next = str.find(',', pos);
+    arg1 = str.substr(pos + 1, next - pos - 1);
+    pos = next + 1;
+    next = str.find(',', pos);
+    arg2 = str.substr(pos + 1, next - pos - 1);
+    pos = next + 1;
+    next = str.find(',', pos);
+    result = str.substr(pos + 1, next - pos - 1);
+    return Quadruple(op, arg1, arg2, result);
+}
+
+// 0: (R,-,-,TB0)
+std::vector<Quadruple> ReadQuadruples() {
+    int n;
+    std::cin >> n;
+    std::vector<Quadruple> quadruples(n);
+    std::string op, arg1, arg2, result;
+    for (int i = 0; i < n; i++) {
+        std::string t;
+        std::cin >> t >> t;
+        quadruples[i] = ParseQuad(t);
+    }
+    return quadruples;
+}
+
+std::vector<SymbolTableEntry> ReadSymbolTable() {
+    int n;
+    std::cin >> n;
+    std::vector<SymbolTableEntry> symbol_table(n);
+    for (int i = 0; i < n; i++) {
+        std::string name;
+        int type, offset;
+        std::string value;
+        std::cin >> name >> type >> value >> offset;
+        symbol_table[i] = SymbolTableEntry(name);
+        symbol_table[i].type = type;
+        symbol_table[i].value = value;
+        symbol_table[i].offset = offset;
+    }
+    return symbol_table;
+}
+
+int main() {
+    auto quadruples = ReadQuadruples();
+    int junk;
+    std::cin >> junk;
+    auto symbol_table = ReadSymbolTable();
+
+    QuadProcessor processor(quadruples, symbol_table);
+    auto str = processor.ProcessQuadruples();
+    std::cout << str;
+    return 0;
+}
