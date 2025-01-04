@@ -58,54 +58,6 @@ public:
 };
 
 class QuadProcessor {
-public:
-    // 输入：quadruples - 四元式序列, symbolTable - 符号表
-    // 作用：构造函数，初始化四元式处理器
-    QuadProcessor(std::vector<Quadruple> &quadruples, std::vector<SymbolTableEntry> &symbolTable)
-         : quadruples_(quadruples), symbol_table_(symbolTable) {
-        // 初始化偏移量
-        auto entry = symbol_table_.back();
-        offset_ = entry.offset + 4 + entry.type * 4;
-        // 初始化寄存器
-        registers_.push_back(Register{"R0"});
-        registers_.push_back(Register{"R1"});
-        registers_.push_back(Register{"R2"});
-        // 初始化寄存器描述符和地址描述符
-        for(auto &reg : registers_){
-            r_val_[reg.name] = {};
-        }
-        for(auto &entry : symbol_table_){
-            a_val_[entry.name] = {};
-        }
-        // 找临时变量
-        for(auto &quad : quadruples_){
-            for(auto str : {quad.arg1, quad.arg2, quad.result}){
-                if(str[0] == 'T' && str[1] != 'B'){
-                    auto it = std::find_if(symbol_table_.begin(), symbol_table_.end(), [&](SymbolTableEntry &entry){
-                        return entry.name == str;
-                    });
-                    if(it == symbol_table_.end()){
-                        InsertSym_(str);
-                        a_val_[str] = {};
-                    }
-                }
-            }
-        }
-        // 字典序重排符号表
-        std::sort(symbol_table_.begin(), symbol_table_.end(), [](SymbolTableEntry &a, SymbolTableEntry &b){
-            return a.name < b.name;
-        });
-    }
-
-    // 输入：无
-    // 输出：无
-    // 作用：主处理函数，控制整个四元式处理流程，包括划分基本块，计算待用信息，生成目标代码等
-    std::string ProcessQuadruples(){
-        DivBlocks_();
-        CalcLiveUse_();
-        return GenTarget_();
-    }
-
 private:
     std::vector<Quadruple>& quadruples_;
     std::vector<BasicBlock> basic_blocks_;
@@ -238,75 +190,18 @@ private:
             if(block.have_label){
                 target_ << "?" << i << ":" << std::endl;
             }
-            for(int j = block.start; j <= block.end; j ++){
-                auto quad = quadruples_[j];
-                if(CheckTheta_(quad.op)){
-                    std::string rz = GetReg_(j);
-                    std::string x = GetVal_(quad.arg1);
-                    std::string y = GetVal_(quad.arg2);
-                    if(x == rz){
-                        target_ << quad.op << " " << rz << ", " << y << std::endl;
-                        a_val_[quad.arg1].erase(rz);
-                    }else{
-                        std::string rx = GetReg_(j);
-                        target_ << "mov " << rz << ", " << x << std::endl;
-                        target_ << quad.op << " " << rz << ", " << y << std::endl;
-                    }
-                    if(y == rz){
-                        a_val_[quad.arg2].erase(rz);
-                    }
-                    r_val_[rz] = {quad.result};
-                    a_val_[quad.result] = {rz};
-                    RelReg_(quad.arg1);
-                    RelReg_(quad.arg2);
-                    // quad.result is temp, offset == -1 and live, assign offset
-                    if(quad.result[0] == 'T' && quad.result[1] != 'B'){
-                        auto it = std::find_if(symbol_table_.begin(), symbol_table_.end(), [&](SymbolTableEntry &entry){
-                            return entry.name == quad.result;
-                        });
-                        if(it != symbol_table_.end() && it->offset == -1 && it->live){
-                            it->offset = offset_;
-                            offset_ += 4 + it->type * 4;
-                        }
-                    }
-                }else if(quad.op == "R"){
-                    target_ << "jmp ?read(" << quad.result << ")" << std::endl;
-                }else if(quad.op == "W"){
-                    target_ << "jmp ?write(" << quad.result << ")" << std::endl;
-                }
-                // 更新use live
-                UpdLiveUse_(j);
-            }
+            // theta
+            GenTheta_(i);
+            // spill
             for(auto &entry : symbol_table_){
-                if(entry.live && a_val_[entry.name].find(entry.name) == a_val_[entry.name].end()){
+                if(entry.live && !a_val_[entry.name].count(entry.name)){
                     std::string ra = *a_val_[entry.name].begin();
                     target_ << "mov " << GetMem_(entry.name) << ", " << ra << std::endl;
                 }
             }
-            auto quad = quadruples_[block.end];
-            if(quad.op == "j"){
-                target_ << "jmp ?" << quadruples_[block.end].result << std::endl;
-            }else if(quad.op[0] == 'j'){
-                std::string x = GetVal_(quad.arg1);
-                std::string y = GetVal_(quad.arg2);
-                if(x[0] != 'R'){
-                    std::string rx = GetReg_(block.end);
-                    target_ << "mov " << rx << ", " << x << std::endl;
-                    x = rx;
-                }
-                target_ << "cmp " << x << ", " << y << " and " << quad.op << " ?" << quad.result << std::endl;
-            }else if(quad.op == "jnz"){
-                std::string x = GetVal_(quad.arg1);
-                if(x[0] != 'R'){
-                    std::string rx = GetReg_(block.end);
-                    target_ << "mov " << rx << ", " << x << std::endl;
-                    x = rx;
-                }
-                target_ << "cmp " << x << ", 0" << std::endl;
-                target_ << "jne ?" << quad.result << std::endl;
-            }else if(quad.op == "End"){
-                target_ << "halt" << std::endl;
-            }
+            // jump
+            GenJump_(i);
+            // clear
             for(auto &reg : registers_){
                 r_val_[reg.name] = {};
             }
@@ -317,8 +212,88 @@ private:
         return target_.str();
     }
 
+    void GenTheta_(int blockid){
+        auto block = basic_blocks_[blockid];
+        for(int j = block.start; j <= block.end; j ++){
+            auto quad = quadruples_[j];
+            // 更新use live
+            UpdLiveUse_(j);
+            if(CheckTheta_(quad.op)){
+                std::string rz = GetReg_(j);
+                std::string x = GetVal_(quad.arg1);
+                std::string y = GetVal_(quad.arg2);
+                if(x == rz){
+                    target_ << quad.op << " " << rz << ", " << y << std::endl;
+                    a_val_[quad.arg1].erase(rz);
+                }else{
+                    std::string rx = GetReg_(j);
+                    target_ << "mov " << rz << ", " << x << std::endl;
+                    target_ << GetOp_(quad.op) << " " << rz << ", " << y << std::endl;
+                }
+                if(y == rz){
+                    a_val_[quad.arg2].erase(rz);
+                }
+                r_val_[rz] = {quad.result};
+                a_val_[quad.result] = {rz};
+                RelReg_(quad.arg1);
+                RelReg_(quad.arg2);
+            }else if(quad.op == "R"){
+                target_ << "jmp ?read(" << GetMem_(quad.result) << ")" << std::endl;
+            }else if(quad.op == "W"){
+                target_ << "jmp ?write(" << GetMem_(quad.result) << ")" << std::endl;
+            }else if(quad.op == "="){
+                std::string rz = GetReg_(j);
+                if(quad.arg1[0] != 'T'){
+                    // immediate
+                    target_ << "mov " << rz << ", " << quad.arg1 << std::endl;
+                }else if(r_val_[rz].count(quad.arg1)){
+                    // already in rz
+                }else{
+                    std::string x = GetVal_(quad.arg1);
+                    if(x[0] != 'R'){
+                        target_ << "mov " << rz << ", " << x << std::endl;
+                    }else{
+                        target_ << "mov " << rz << ", " << x << std::endl;
+                    }
+                    r_val_[rz] = {quad.result};
+                    a_val_[quad.result] = {rz};
+                    RelReg_(quad.arg1);
+                }
+            }
+        }
+    }
+
+    void GenJump_(int blockid){
+        int qid = basic_blocks_[blockid].end;
+        auto quad = quadruples_[qid];
+        if(quad.op == "j"){
+            target_ << "jmp ?" << quad.result << std::endl;
+        }else if(quad.op[0] == 'j'){
+            std::string x = GetVal_(quad.arg1);
+            std::string y = GetVal_(quad.arg2);
+            if(x[0] != 'R'){
+                std::string rx = GetReg_(qid);
+                target_ << "mov " << rx << ", " << x << std::endl;
+                x = rx;
+            }
+            target_ << "cmp " << x << ", " << y << std::endl;
+            target_ << GetOp_(quad.op) << " ?" << quad.result << std::endl;
+        }else if(quad.op == "jnz"){
+            std::string x = GetVal_(quad.arg1);
+            if(x[0] != 'R'){
+                std::string rx = GetReg_(qid);
+                target_ << "mov " << rx << ", " << x << std::endl;
+                x = rx;
+            }
+            target_ << "cmp " << x << ", 0" << std::endl;
+            target_ << "jne ?" << quad.result << std::endl;
+        }else if(quad.op == "End"){
+            target_ << "halt" << std::endl;
+        }
+    }
+
     bool CheckTheta_(std::string theta){
-        return theta != "End" && theta != "R" && theta != "W" && theta[0] != 'j';
+        return theta != "End" && theta != "R" && theta != "W" && theta[0] != 'j' && theta != "=";
     }
 
     // 输入：name - 变量名
@@ -345,12 +320,33 @@ private:
         return "[ebp-" + std::to_string(it->offset) + "]";
     }
 
+    std::string GetOp_(std::string op){
+        if (op == "+") return "add";
+        else if (op == "-") return "sub";
+        else if (op == "*") return "mul";
+        else if (op == "/") return "div";
+        else if (op == "&&") return "and";
+        else if (op == "||") return "or";
+        else if (op == "!") return "not";
+        assert(0);
+    }
+
+    std::string GetCmp_(std::string op){
+        if (op == ">") return "g";
+        else if (op == "<") return "l";
+        else if (op == "==") return "e";
+        else if (op == "!=") return "ne";
+        else if (op == ">=") return "ge";
+        else if (op == "<=") return "le";
+        assert(0);
+    }
+
     // 输入：variable - 变量名, quadIndex - 四元式编号
     // 输出：变量所在的寄存器名
     // 作用：获取变量所在的寄存器，如果没有分配寄存器，则进行分配
     std::string GetReg_(int quadindex){
         auto quad = quadruples_[quadindex];
-        if(CheckTheta_(quad.op)){
+        if(CheckTheta_(quad.op) || (quad.op == "=" && quad.arg1[0] == 'T')){
             for(auto reg : a_val_[quad.arg1]){
                 if(reg[0] == 'R' && reg == quad.arg1 && r_val_[reg].size() == 1 && (quad.arg1 == quad.result || !quadruples_[quadindex].live_arg1)){
                     return reg;
@@ -362,6 +358,7 @@ private:
                 return reg.name;
             }
         }
+        // spill condition 1
         std::string Ri;
         bool ok = false;
         for(auto reg : registers_){
@@ -381,6 +378,7 @@ private:
                 break;
             }
         }
+        // spill condition 2
         if(!ok){
             // Ri = (Rj\in R) argmax (a\in Rval(Rj)) min a.use
             int min_use = INT_MAX, min_reg = -1;
@@ -396,8 +394,15 @@ private:
                 }
             }
         }
+        // spill
         for(auto a : r_val_[Ri]){
-            if(a != quad.result && !a_val_[a].count(a)){
+            // check live
+            auto it = std::find_if(symbol_table_.begin(), symbol_table_.end(), [&](SymbolTableEntry &entry){
+                return entry.name == a;
+            });
+            if(it->live && a != quad.result && !a_val_[a].count(a)){
+                // temp alloc
+                AllocSymTemp_(a);
                 target_ << "mov " << GetMem_(a) << ", " << Ri << std::endl;
             }
             if(a == quad.arg1 || (a == quad.arg2 && r_val_[Ri].count(quad.arg1))){
@@ -417,11 +422,15 @@ private:
         if(var[1] == 'B'){
             return;
         }
+        std::vector<std::string> to_erase; // 使用 vector 记录要删除的寄存器
         for(auto reg : a_val_[var]){
             if(reg[0] == 'R'){
-                r_val_[reg].erase(var);
-                a_val_[var].erase(reg);
+                to_erase.push_back(reg);
             }
+        }
+        for(const auto& reg : to_erase){
+            r_val_[reg].erase(var);
+            a_val_[var].erase(reg);
         }
     }
 
@@ -434,6 +443,20 @@ private:
         // type
         entry.offset = -1;
         entry.type = sym.back() == 'i' ? 0 : 1;
+        symbol_table_.push_back(entry);
+    }
+
+    void AllocSymTemp_(std::string sym){
+        // quad.result is temp, offset == -1 and live, assign offset
+        if(sym[0] == 'T' && sym[1] != 'B'){
+            auto it = std::find_if(symbol_table_.begin(), symbol_table_.end(), [&](SymbolTableEntry &entry){
+                return entry.name == sym;
+            });
+            if(it != symbol_table_.end() && it->offset == -1 && it->live){
+                it->offset = offset_;
+                offset_ += 4 + it->type * 4;
+            }
+        }
     }
 
     void UpdLiveUse_(int quadindex){
@@ -470,6 +493,58 @@ private:
             }
             std::cout << std::endl;
         }
+    }
+
+public:
+    // 输入：quadruples - 四元式序列, symbolTable - 符号表
+    // 作用：构造函数，初始化四元式处理器
+    QuadProcessor(std::vector<Quadruple> &quadruples, std::vector<SymbolTableEntry> &symbolTable)
+         : quadruples_(quadruples), symbol_table_(symbolTable) {
+        // 初始化偏移量
+        auto entry = symbol_table_.back();
+        offset_ = entry.offset + 4 + entry.type * 4;
+        // 初始化寄存器
+        registers_.push_back(Register{"R0"});
+        registers_.push_back(Register{"R1"});
+        registers_.push_back(Register{"R2"});
+        // 重命名符号表变量
+        for(int i = 0; i < symbol_table_.size(); i++){
+            symbol_table_[i].name = "TB" + std::to_string(i);
+        }
+        // 初始化寄存器描述符和地址描述符
+        for(auto &reg : registers_){
+            r_val_[reg.name] = {};
+        }
+        for(auto &entry : symbol_table_){
+            a_val_[entry.name] = {};
+        }
+        // 找临时变量
+        for(auto &quad : quadruples_){
+            for(auto str : {quad.arg1, quad.arg2, quad.result}){
+                if(str[0] == 'T' && str[1] != 'B'){
+                    auto it = std::find_if(symbol_table_.begin(), symbol_table_.end(), [&](SymbolTableEntry &entry){
+                        return entry.name == str;
+                    });
+                    if(it == symbol_table_.end()){
+                        InsertSym_(str);
+                        a_val_[str] = {};
+                    }
+                }
+            }
+        }
+        // 字典序重排符号表
+        std::sort(symbol_table_.begin(), symbol_table_.end(), [](SymbolTableEntry &a, SymbolTableEntry &b){
+            return a.name < b.name;
+        });
+    }
+
+    // 输入：无
+    // 输出：无
+    // 作用：主处理函数，控制整个四元式处理流程，包括划分基本块，计算待用信息，生成目标代码等
+    std::string ProcessQuadruples(){
+        DivBlocks_();
+        CalcLiveUse_();
+        return GenTarget_();
     }
 };
 

@@ -9,13 +9,13 @@ Quadruple ParseQuad(std::string str){
     op = str.substr(pos + 1, next - pos - 1);
     pos = next + 1;
     next = str.find(',', pos);
-    arg1 = str.substr(pos + 1, next - pos - 1);
+    arg1 = str.substr(pos, next - pos);
     pos = next + 1;
     next = str.find(',', pos);
-    arg2 = str.substr(pos + 1, next - pos - 1);
+    arg2 = str.substr(pos, next - pos);
     pos = next + 1;
-    next = str.find(',', pos);
-    result = str.substr(pos + 1, next - pos - 1);
+    next = str.find(')', pos);
+    result = str.substr(pos, next - pos);
     return Quadruple(op, arg1, arg2, result);
 }
 
@@ -51,10 +51,10 @@ std::vector<SymbolTableEntry> ReadSymbolTable() {
 }
 
 int main() {
-    auto quadruples = ReadQuadruples();
+    auto symbol_table = ReadSymbolTable();
     int junk;
     std::cin >> junk;
-    auto symbol_table = ReadSymbolTable();
+    auto quadruples = ReadQuadruples();
 
     QuadProcessor processor(quadruples, symbol_table);
     auto str = processor.ProcessQuadruples();
